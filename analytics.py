@@ -5,7 +5,7 @@ from datetime import datetime
 from note_client import NoteClient
 
 
-HISTORY_FILE = "analytics_history.jsonl"
+HISTORY_FILE = os.path.join(os.path.dirname(__file__), "analytics_history.jsonl")
 
 
 def run_report() -> dict:
