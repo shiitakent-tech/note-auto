@@ -34,7 +34,7 @@ def run_pipeline(dry_run: bool = False, count=None):
         article = note.post_article(
             title=topic["title"],
             body=full_body,
-            price=topic.get("price", config.default_price),
+            price=config.default_price,  # 常に300円固定
             free_body=free_body,
             magazine_id=config.magazine_id,
             hashtags=topic.get("hashtags", []),
