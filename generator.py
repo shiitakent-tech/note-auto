@@ -93,11 +93,17 @@ def _ask(prompt: str) -> str:
 
 def suggest_topics(stats: list, n: int = 3) -> list:
     stats_json = json.dumps(stats, ensure_ascii=False, indent=2)
-    raw = _ask(TOPIC_PROMPT.format(n=n, stats_json=stats_json))
-    # JSON部分だけ抽出
-    start = raw.find("[")
-    end = raw.rfind("]") + 1
-    return json.loads(raw[start:end])
+    for attempt in range(3):
+        raw = _ask(TOPIC_PROMPT.format(n=n, stats_json=stats_json))
+        start = raw.find("[")
+        end = raw.rfind("]") + 1
+        if start == -1 or end == 0:
+            continue
+        try:
+            return json.loads(raw[start:end])
+        except json.JSONDecodeError:
+            continue
+    raise RuntimeError("テーマ提案のJSON解析に3回失敗しました")
 
 
 def generate_article(topic: dict) -> tuple:
@@ -117,5 +123,5 @@ def generate_article(topic: dict) -> tuple:
     return raw[:cut].strip(), raw[cut:].strip()
 
 
-def generate_tweet(title: str, url: str, hashtags: list[str]) -> str:
+def generate_tweet(title: str, url: str, hashtags: list) -> str:
     return _ask(X_PROMPT.format(title=title, url=url, hashtags=" ".join(f"#{h}" for h in hashtags)))
