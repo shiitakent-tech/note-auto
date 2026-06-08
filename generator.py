@@ -71,7 +71,7 @@ def _ask(prompt: str) -> str:
     return msg.content[0].text.strip()
 
 
-def suggest_topics(stats: list[dict], n: int = 3) -> list[dict]:
+def suggest_topics(stats: list, n: int = 3) -> list:
     stats_json = json.dumps(stats, ensure_ascii=False, indent=2)
     raw = _ask(TOPIC_PROMPT.format(n=n, stats_json=stats_json))
     # JSON部分だけ抽出
@@ -80,7 +80,7 @@ def suggest_topics(stats: list[dict], n: int = 3) -> list[dict]:
     return json.loads(raw[start:end])
 
 
-def generate_article(topic: dict) -> tuple[str, str]:
+def generate_article(topic: dict) -> tuple:
     """(free_body, paid_body) を返す。"""
     raw = _ask(ARTICLE_PROMPT.format(
         title=topic["title"],

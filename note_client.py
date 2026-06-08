@@ -3,10 +3,13 @@ import json
 import time
 import requests
 from dataclasses import dataclass
+from typing import Optional
 from config import config
+from get_token import get_gql_auth_token
 
 
-BASE = "https://note.com/api/v2"
+BASE_V1 = "https://note.com/api/v1"
+BASE_V2 = "https://note.com/api/v2"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
     "Accept": "application/json",
@@ -25,7 +28,12 @@ class NoteClient:
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update(HEADERS)
-        self.session.cookies.update(self._parse_cookie(config.note_cookie))
+        cookies = self._parse_cookie(config.note_cookie)
+        self.session.cookies.update(cookies)
+        # Playwrightで最新のnote_gql_auth_tokenを自動取得
+        print("  🔑 認証トークンを取得中...")
+        token = get_gql_auth_token(config.note_cookie)
+        self.session.headers.update({"Authorization": f"Bearer {token}"})
 
     @staticmethod
     def _parse_cookie(raw: str) -> dict:
@@ -53,7 +61,7 @@ class NoteClient:
         price: int = 0,
         free_body: str = "",
         magazine_id: str = "",
-        hashtags: list[str] | None = None,
+        hashtags: Optional[list] = None,
     ) -> PostedArticle:
         csrf = self._csrf()
         payload: dict = {
@@ -70,9 +78,9 @@ class NoteClient:
             payload["hashtag_list"] = hashtags
 
         r = self.session.post(
-            f"{BASE}/notes",
+            f"{BASE_V1}/text_notes",
             json=payload,
-            headers={**HEADERS, "X-CSRF-Token": csrf, "Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "Referer": "https://note.com/notes/new", "X-Requested-With": "XMLHttpRequest"},
         )
         r.raise_for_status()
         data = r.json()["data"]
@@ -83,7 +91,7 @@ class NoteClient:
     def get_stats(self, limit: int = 20) -> list[dict]:
         """記事ごとのビュー数・購入数を取得。"""
         r = self.session.get(
-            f"{BASE}/creators/{config.note_user_id}/contents",
+            f"{BASE_V2}/creators/{config.note_user_id}/contents",
             params={"kind": "note", "page": 1},
         )
         r.raise_for_status()

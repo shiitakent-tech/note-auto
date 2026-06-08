@@ -3,7 +3,7 @@ import tweepy
 from config import config
 
 
-def get_client() -> tweepy.Client | None:
+def get_client():
     if not all([
         config.twitter_api_key,
         config.twitter_api_secret,
@@ -19,7 +19,7 @@ def get_client() -> tweepy.Client | None:
     )
 
 
-def tweet(text: str) -> str | None:
+def tweet(text: str):
     client = get_client()
     if client is None:
         print("[Twitter] 認証情報が未設定のためスキップ")

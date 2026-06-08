@@ -8,7 +8,7 @@ from analytics import run_report
 from config import config
 
 
-def run_pipeline(dry_run: bool = False, count: int | None = None):
+def run_pipeline(dry_run: bool = False, count=None):
     note = NoteClient()
     n = count or config.topics_per_run
 
