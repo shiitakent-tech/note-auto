@@ -41,6 +41,14 @@ class NoteClient:
                 result[k.strip()] = v.strip()
         return result
 
+    @staticmethod
+    def _strip_md(line: str) -> str:
+        """Markdown記号を除去してプレーンテキストにする（ブロック照合用）。"""
+        import re
+        line = re.sub(r"^[#>\-\*\+\s]+", "", line)   # 行頭の見出し/リスト記号
+        line = re.sub(r"[\*_`~#]", "", line)            # インライン装飾
+        return line.strip()
+
     def post_article(
         self,
         title: str,
@@ -50,7 +58,34 @@ class NoteClient:
         magazine_id: str = "",
         hashtags: Optional[list] = None,
     ) -> "PostedArticle":
-        """Playwrightでエディターを操作して記事を公開する。"""
+        """Playwrightでエディターを操作して記事を公開する。
+
+        price>0 かつ有料パートがある場合は有料記事として公開する。
+        """
+        # ── 無料パート / 有料パートを分離 ──
+        marker = "---有料ここから---"
+        if marker in body:
+            free_part, paid_part = (s.strip() for s in body.split(marker, 1))
+        else:
+            free_part, paid_part = body.strip(), ""
+
+        is_paid = price > 0 and bool(paid_part)
+
+        # エディターに貼り付ける本文（マーカーは除去し、純粋な本文を連結）
+        if paid_part:
+            paste_content = free_part + "\n\n" + paid_part
+        else:
+            paste_content = free_part
+
+        # 有料ライン位置を特定するための「有料パート先頭ブロック」のプレーンテキスト
+        first_paid_plain = ""
+        if is_paid:
+            for ln in paid_part.splitlines():
+                p = self._strip_md(ln)
+                if p:
+                    first_paid_plain = p[:18]
+                    break
+
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             context = browser.new_context(
@@ -107,7 +142,7 @@ class NoteClient:
                         new ClipboardEvent('paste', {clipboardData: dt, bubbles: true})
                     );
                 }""",
-                body,
+                paste_content,
             )
             page.wait_for_timeout(2000)
 
@@ -123,7 +158,7 @@ class NoteClient:
                             document.execCommand('insertText', false, text);
                         }
                     }""",
-                    body,
+                    paste_content,
                 )
                 page.wait_for_timeout(2000)
 
@@ -135,6 +170,69 @@ class NoteClient:
             print("  🚀 公開ダイアログを開く...")
             page.get_by_role("button", name="公開に進む").click()
             page.wait_for_timeout(4000)
+
+            # ── Step 6.5: 有料記事の設定 ──
+            if is_paid:
+                print(f"  💰 有料記事に設定中（{price}円）...")
+                # 「有料」ラジオを選択
+                page.get_by_text("有料", exact=True).click()
+                page.wait_for_timeout(2500)
+
+                # 本人情報モーダルが出た場合は中断（登録未完了）
+                if "本人情報" in page.evaluate("() => document.body.innerText"):
+                    raise RuntimeError(
+                        "有料化に失敗: note.comの本人情報登録が未完了です。"
+                        "ブラウザで氏名・住所を登録してください。"
+                    )
+
+                # 価格を入力（デフォルト300だが明示的にセット）
+                price_input = page.locator('input[placeholder="300"]')
+                if price_input.count() > 0:
+                    price_input.first.click()
+                    price_input.first.fill(str(price))
+                    page.wait_for_timeout(500)
+
+                # 「有料エリア設定」をクリックして境界線設定画面へ
+                page.get_by_role("button", name="有料エリア設定").click()
+                page.wait_for_timeout(3000)
+
+                # 有料パート先頭ブロックの直前のラインボタンをクリック
+                if first_paid_plain:
+                    result = page.evaluate(
+                        """(target) => {
+                            const blocks = Array.from(
+                                document.querySelectorAll('h1,h2,h3,h4,p,li,blockquote')
+                            );
+                            const block = blocks.find(
+                                el => el.textContent.trim().startsWith(target)
+                            );
+                            if (!block) return 'BLOCK_NOT_FOUND';
+                            let prev = block.previousElementSibling;
+                            let steps = 0;
+                            while (prev && steps < 6) {
+                                const btn = prev.tagName === 'BUTTON'
+                                    ? prev : prev.querySelector('button');
+                                if (btn && btn.textContent.includes('ラインをこの場所に変更')) {
+                                    btn.click();
+                                    return 'CLICKED';
+                                }
+                                prev = prev.previousElementSibling;
+                                steps++;
+                            }
+                            return 'NO_BUTTON';
+                        }""",
+                        first_paid_plain,
+                    )
+                    print(f"  🔖 有料ライン設定: {result}")
+                    if result == "CLICKED":
+                        page.wait_for_timeout(1500)
+                    else:
+                        # 境界が特定できない場合、デフォルト位置（1段落目後）のまま進むと
+                        # ほぼ全文が有料になり危険なので中断
+                        raise RuntimeError(
+                            f"有料ライン位置を特定できませんでした（{result}）。"
+                            f"目印テキスト: '{first_paid_plain}'"
+                        )
 
             # ── Step 7: 公開モーダルのボタンを特定してクリック ──
             # note.comは「投稿する」ボタンが公開モーダル内に出る
