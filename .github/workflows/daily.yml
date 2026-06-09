@@ -1,9 +1,9 @@
-name: note 自動投稿（朝9時・夜17時）
+name: note 自動投稿（朝8時・夜19時）
 
 on:
   schedule:
-    - cron: "0 0 * * *"   # UTC 00:00 = JST 09:00
-    - cron: "0 8 * * *"   # UTC 08:00 = JST 17:00
+    - cron: "0 23 * * *"  # UTC 23:00 = JST 08:00（朝の通勤時間）
+    - cron: "0 10 * * *"  # UTC 10:00 = JST 19:00（帰宅後のゴールデンタイム）
   workflow_dispatch:        # 手動実行も可能
 
 jobs:
