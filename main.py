@@ -6,11 +6,53 @@ from generator import suggest_topics, generate_article, generate_tweet
 from twitter_client import tweet
 from analytics import run_report
 from config import config
+from scheduled_posts import get_due_post, mark_posted
+
+
+def _post_scheduled(note, due, dry_run: bool) -> bool:
+    """予約記事を投稿する。投稿したら True を返す。"""
+    path, meta, body = due
+    title = meta.get("title", "（無題）")
+    hashtags = meta.get("hashtags", [])
+    price = meta.get("price", config.default_price)
+    free_body = body.split("---有料ここから---", 1)[0].strip()
+
+    print(f"\n📌 予約投稿を検出: {title}")
+    if dry_run:
+        paid_len = len(body) - len(free_body)
+        print(f"  [DRY RUN] 予約投稿スキップ（無料 {len(free_body)}字 / 残り {paid_len}字 / {price}円）")
+        return True
+
+    print("  📤 note へ投稿中...")
+    article = note.post_article(
+        title=title,
+        body=body,
+        price=price,
+        free_body=free_body,
+        magazine_id=config.magazine_id,
+        hashtags=hashtags,
+    )
+    print(f"  ✅ 投稿完了: {article.url}")
+    mark_posted(path)  # 二重投稿防止
+
+    print("  🐦 X へ宣伝投稿中...")
+    tweet_text = generate_tweet(article.title, article.url, hashtags)
+    tweet_url = tweet(tweet_text)
+    if tweet_url:
+        print(f"  ✅ ツイート: {tweet_url}")
+    return True
 
 
 def run_pipeline(dry_run: bool = False, count=None):
     note = NoteClient()
     n = count or config.topics_per_run
+
+    # 今日(JST)の予約記事があれば、AI生成より優先して投稿する
+    due = get_due_post()
+    if due is not None:
+        _post_scheduled(note, due, dry_run)
+        print("\n🎉 完了: 予約記事を投稿しました")
+        return
 
     print("📊 パフォーマンス分析中...")
     stats = note.get_stats(limit=30)
