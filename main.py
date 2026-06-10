@@ -1,4 +1,5 @@
 """メインパイプライン: 分析 → テーマ選定 → 記事生成 → 投稿 → SNS宣伝。"""
+import os
 import time
 import argparse
 from datetime import datetime, timezone, timedelta
@@ -8,6 +9,7 @@ from twitter_client import tweet
 from analytics import run_report
 from config import config
 from scheduled_posts import get_due_post, mark_posted
+from image_fetcher import fetch_header_image
 
 JST = timezone(timedelta(hours=9))
 
@@ -35,6 +37,9 @@ def _post_scheduled(note, due, dry_run: bool) -> bool:
         print(f"  [DRY RUN] 予約投稿スキップ（無料 {len(free_body)}字 / 残り {paid_len}字 / {price}円）")
         return True
 
+    print("  🖼️  見出し画像を検索中...")
+    header_image = fetch_header_image(title)
+
     print("  📤 note へ投稿中...")
     article = note.post_article(
         title=title,
@@ -43,7 +48,10 @@ def _post_scheduled(note, due, dry_run: bool) -> bool:
         free_body=free_body,
         magazine_id=config.magazine_id,
         hashtags=hashtags,
+        header_image_path=header_image,
     )
+    if header_image:
+        os.unlink(header_image)
     print(f"  ✅ 投稿完了: {article.url}")
     mark_posted(path)  # 二重投稿防止
 
@@ -89,6 +97,9 @@ def run_pipeline(dry_run: bool = False, count=None, price=None):
             results.append({"topic": topic, "skipped": True})
             continue
 
+        print(f"  🖼️  見出し画像を検索中...")
+        header_image = fetch_header_image(topic["title"])
+
         print(f"  📤 note へ投稿中...")
         # 無料投稿(price=0)なら全文公開、有料(price>0)なら有料ラインを設定
         article = note.post_article(
@@ -98,7 +109,10 @@ def run_pipeline(dry_run: bool = False, count=None, price=None):
             free_body=free_body,
             magazine_id=config.magazine_id,
             hashtags=topic.get("hashtags", []),
+            header_image_path=header_image,
         )
+        if header_image:
+            os.unlink(header_image)
         print(f"  ✅ 投稿完了: {article.url}")
 
         print(f"  🐦 X へ宣伝投稿中...")
