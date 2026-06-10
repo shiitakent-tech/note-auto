@@ -22,6 +22,9 @@ class Config:
     twitter_access_token: str = field(default_factory=lambda: os.getenv("TWITTER_ACCESS_TOKEN", ""))
     twitter_access_secret: str = field(default_factory=lambda: os.getenv("TWITTER_ACCESS_SECRET", ""))
 
+    # Pexels（見出し画像）
+    pexels_api_key: str = field(default_factory=lambda: os.getenv("PEXELS_API_KEY", ""))
+
     # Article settings
     default_price: int = 300          # 有料記事のデフォルト価格（円）
     free_part_chars: int = 500        # 無料で読める文字数
