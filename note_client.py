@@ -122,10 +122,11 @@ class NoteClient:
             page.wait_for_timeout(3000)
 
             # ── Step 2.5: 見出し画像をアップロード ──
+            # hidden な input[type=file][accept*=image] を直接操作する。
+            # ボタンクリックは行わない（誤ったナビゲーションを防ぐため）。
             if header_image_path:
                 print("  🖼️  見出し画像をアップロード中...")
                 try:
-                    # hidden な input[type=file] を直接操作（note.comエディター対応）
                     uploaded = False
                     file_inputs = page.locator('input[type="file"]')
                     for i in range(file_inputs.count()):
@@ -136,28 +137,10 @@ class NoteClient:
                             page.wait_for_timeout(3000)
                             uploaded = True
                             break
-
-                    if not uploaded:
-                        # ファイル選択ダイアログが開くパターンに対応
-                        with page.expect_file_chooser(timeout=5000) as fc_info:
-                            for sel in [
-                                '[class*="eyecatch" i] button',
-                                '[class*="EyeCatch"] button',
-                                '[class*="header-image"] button',
-                                'button[class*="upload"]',
-                            ]:
-                                el = page.locator(sel)
-                                if el.count() > 0:
-                                    el.first.click()
-                                    break
-                        fc_info.value.set_files(header_image_path)
-                        page.wait_for_timeout(3000)
-                        uploaded = True
-
                     if uploaded:
                         print("  ✅ 見出し画像アップロード完了")
                     else:
-                        print("  ⚠️  見出し画像アップロード: 対象要素が見つかりません")
+                        print("  ⚠️  見出し画像: image input が見つかりません（スキップ）")
                 except Exception as e:
                     print(f"  ⚠️  見出し画像アップロードをスキップ: {e}")
 
