@@ -1,5 +1,8 @@
 """Claude を使った記事生成 + テーマ選定。"""
+from __future__ import annotations
+
 import json
+import re
 import anthropic
 from config import config
 
@@ -89,27 +92,45 @@ URL: {url}
 """
 
 
-def _ask(prompt: str) -> str:
+def _ask(prompt: str, prefill: str | None = None) -> str:
+    messages = [{"role": "user", "content": prompt}]
+    if prefill:
+        # assistant側を途中まで埋めておくと、その続きから書かせられる（Anthropicのprefill）
+        messages.append({"role": "assistant", "content": prefill})
     msg = client.messages.create(
         model=config.claude_model,
         max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
+        messages=messages,
     )
-    return msg.content[0].text.strip()
+    text = msg.content[0].text.strip()
+    return (prefill + text) if prefill else text
+
+
+def _extract_json_array(raw: str):
+    """LLM出力からJSON配列を頑健に取り出す。取り出せなければ None。"""
+    # コードフェンス（```json など）を除去
+    text = re.sub(r"```(?:json)?", "", raw).strip()
+    start = text.find("[")
+    end = text.rfind("]") + 1
+    if start == -1 or end <= start:
+        return None
+    chunk = text[start:end]
+    # 末尾カンマ（ ,] や ,} ）を除去してから解析
+    chunk = re.sub(r",\s*([\]}])", r"\1", chunk)
+    try:
+        return json.loads(chunk)
+    except json.JSONDecodeError:
+        return None
 
 
 def suggest_topics(stats: list, n: int = 3) -> list:
     stats_json = json.dumps(stats, ensure_ascii=False, indent=2)
-    for attempt in range(3):
-        raw = _ask(TOPIC_PROMPT.format(n=n, stats_json=stats_json))
-        start = raw.find("[")
-        end = raw.rfind("]") + 1
-        if start == -1 or end == 0:
-            continue
-        try:
-            return json.loads(raw[start:end])
-        except json.JSONDecodeError:
-            continue
+    for _ in range(3):
+        # assistantを "[" で開始させ、必ずJSON配列から書かせる（前置き文の混入を防ぐ）
+        raw = _ask(TOPIC_PROMPT.format(n=n, stats_json=stats_json), prefill="[")
+        topics = _extract_json_array(raw)
+        if topics:
+            return topics
     raise RuntimeError("テーマ提案のJSON解析に3回失敗しました")
 
 
