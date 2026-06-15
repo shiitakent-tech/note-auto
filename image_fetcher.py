@@ -1,5 +1,6 @@
 """Pexels APIで見出し画像を検索・ダウンロードする。"""
 import tempfile
+from typing import Optional
 import requests
 import anthropic
 from config import config
@@ -24,7 +25,7 @@ def _extract_image_keywords(title: str) -> str:
     return msg.content[0].text.strip()
 
 
-def fetch_header_image(title: str) -> str | None:
+def fetch_header_image(title: str) -> Optional[str]:
     """Pexelsで見出し画像を取得し、一時ファイルパスを返す。
 
     PEXELS_API_KEY が未設定またはエラー時は None を返す（投稿は継続）。
