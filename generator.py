@@ -13,14 +13,17 @@ TOPIC_PROMPT = """
 ChatGPTだけでなく Claude（Anthropic社のAI）も得意分野として発信しています。
 AIに興味がある人全般（初心者〜上級者）に向けて、お金を払ってでも読みたくなる記事テーマを{n}個提案してください。
 
-過去データ:
+過去データ（ビュー数・いいね数など）:
 {stats_json}
+
+【重要】以下は既に公開済みのタイトル一覧です。これらと同じ・似たテーマは絶対に選ばないでください:
+{existing_titles}
 
 テーマ選定の基準:
 - 「これ知りたかった！」と思わせる具体的なノウハウや気づきがあること
 - 読んだ後に生活・仕事・収入が実際に変わる実践的な内容
 - タイトルを見た瞬間にクリックしたくなる強いフック
-- 既存記事と重複しないこと
+- 上記の既存タイトルと内容・切り口が被らないこと（類似テーマも不可）
 - 有料（300〜500円）として納得感がある深さ・専門性
 - 扱うAIツールは ChatGPT と Claude をバランスよく。特に Claude ならではの強み
   （長文読解・自然な日本語の文章力・コード・丁寧な対話など）を活かしたテーマも積極的に入れる
@@ -161,10 +164,10 @@ def _extract_json_array(raw: str):
 
 def suggest_topics(stats: list, n: int = 3) -> list:
     stats_json = json.dumps(stats, ensure_ascii=False, indent=2)
+    existing = [f"- {s['title']}" for s in stats if s.get("title")]
+    existing_titles = "\n".join(existing) if existing else "（まだ記事なし）"
     for _ in range(3):
-        # opus-4-8 は assistant prefill 非対応。プロンプトで「JSON配列のみ」を指示し、
-        # 前置き文・コードフェンス・末尾カンマは _extract_json_array が頑健に吸収する。
-        raw = _ask(TOPIC_PROMPT.format(n=n, stats_json=stats_json))
+        raw = _ask(TOPIC_PROMPT.format(n=n, stats_json=stats_json, existing_titles=existing_titles))
         topics = _extract_json_array(raw)
         if topics:
             return topics
