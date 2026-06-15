@@ -315,13 +315,30 @@ class NoteClient:
         return PostedArticle(key=note_key, url=url, title=title)
 
     def get_stats(self, limit: int = 20) -> list:
-        """記事ごとのビュー数・いいね数を取得。"""
-        r = self.session.get(
-            f"{BASE_V2}/creators/{config.note_user_id}/contents",
-            params={"kind": "note", "page": 1},
-        )
-        r.raise_for_status()
-        notes = r.json()["data"]["contents"][:limit]
+        """記事ごとのビュー数・いいね数を取得。
+
+        note APIはGitHub Actions等のサーバーIPから403を返すことがある。
+        統計はテーマ選定の補助データに過ぎないため、取得失敗時は空リストを
+        返してパイプライン全体は止めない。最大3回までリトライする。
+        """
+        last_err = None
+        for attempt in range(3):
+            try:
+                r = self.session.get(
+                    f"{BASE_V2}/creators/{config.note_user_id}/contents",
+                    params={"kind": "note", "page": 1},
+                    timeout=20,
+                )
+                r.raise_for_status()
+                notes = r.json()["data"]["contents"][:limit]
+                break
+            except Exception as e:  # noqa: BLE001 (403/タイムアウト等を許容)
+                last_err = e
+                time.sleep(3 * (attempt + 1))
+        else:
+            print(f"  ⚠️ 統計取得に失敗（{last_err}）。空データで続行します。")
+            return []
+
         results = []
         for n in notes:
             results.append(
