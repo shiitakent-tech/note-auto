@@ -56,10 +56,15 @@ def _post_scheduled(note, due, dry_run: bool) -> bool:
     mark_posted(path)  # 二重投稿防止
 
     print("  🐦 X へ宣伝投稿中...")
-    tweet_text = generate_tweet(article.title, article.url, hashtags)
-    tweet_url = tweet(tweet_text)
-    if tweet_url:
-        print(f"  ✅ ツイート: {tweet_url}")
+    # ツイート生成/投稿の失敗（APIクレジット切れ・X認証未設定など）で
+    # 投稿済みの記事まで巻き込んで失敗扱いにしないよう握りつぶす。
+    try:
+        tweet_text = generate_tweet(article.title, article.url, hashtags)
+        tweet_url = tweet(tweet_text)
+        if tweet_url:
+            print(f"  ✅ ツイート: {tweet_url}")
+    except Exception as e:
+        print(f"  ⚠️  ツイートをスキップ（記事投稿は成功済み）: {e}")
     return True
 
 
