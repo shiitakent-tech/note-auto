@@ -14,7 +14,8 @@ class Config:
 
     # Claude (Anthropic)
     anthropic_api_key: str = field(default_factory=lambda: os.environ["ANTHROPIC_API_KEY"])
-    claude_model: str = "claude-opus-4-8"
+    claude_model: str = "claude-opus-4-8"          # 記事本文の生成（品質重視）
+    claude_model_cheap: str = "claude-haiku-4-5"   # 補助タスク（キーワード抽出・ツイート・テーマ選定）
 
     # X (Twitter)
     twitter_api_key: str = field(default_factory=lambda: os.getenv("TWITTER_API_KEY", ""))

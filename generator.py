@@ -131,13 +131,14 @@ URL: {url}
 """
 
 
-def _ask(prompt: str, prefill: str | None = None, max_tokens: int = 4096) -> str:
+def _ask(prompt: str, prefill: str | None = None, max_tokens: int = 4096,
+         model: str | None = None) -> str:
     messages = [{"role": "user", "content": prompt}]
     if prefill:
         # assistant側を途中まで埋めておくと、その続きから書かせられる（Anthropicのprefill）
         messages.append({"role": "assistant", "content": prefill})
     msg = client.messages.create(
-        model=config.claude_model,
+        model=model or config.claude_model,
         max_tokens=max_tokens,
         messages=messages,
     )
@@ -167,7 +168,8 @@ def suggest_topics(stats: list, n: int = 3) -> list:
     existing = [f"- {s['title']}" for s in stats if s.get("title")]
     existing_titles = "\n".join(existing) if existing else "（まだ記事なし）"
     for _ in range(3):
-        raw = _ask(TOPIC_PROMPT.format(n=n, stats_json=stats_json, existing_titles=existing_titles))
+        raw = _ask(TOPIC_PROMPT.format(n=n, stats_json=stats_json, existing_titles=existing_titles),
+                   model=config.claude_model_cheap)
         topics = _extract_json_array(raw)
         if topics:
             return topics
@@ -227,4 +229,5 @@ def generate_article_from_source(source_text: str, price: int | None = None,
 
 
 def generate_tweet(title: str, url: str, hashtags: list) -> str:
-    return _ask(X_PROMPT.format(title=title, url=url, hashtags=" ".join(f"#{h}" for h in hashtags)))
+    return _ask(X_PROMPT.format(title=title, url=url, hashtags=" ".join(f"#{h}" for h in hashtags)),
+                model=config.claude_model_cheap)
