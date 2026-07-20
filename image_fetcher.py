@@ -10,7 +10,7 @@ def _extract_image_keywords(title: str) -> str:
     """記事タイトルからPexels検索用の英語キーワードを抽出する。"""
     client = anthropic.Anthropic(api_key=config.anthropic_api_key)
     msg = client.messages.create(
-        model=config.claude_model,
+        model=config.claude_model_cheap,
         max_tokens=30,
         messages=[{
             "role": "user",
